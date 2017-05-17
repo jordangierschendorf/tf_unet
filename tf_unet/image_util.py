@@ -158,4 +158,24 @@ class ImageDataProvider(BaseDataProvider):
         img = self._load_file(image_name, np.float32)
         label = self._load_file(label_name, np.bool)
     
-        return img,label
+        return img, label
+		
+		
+class SingleImageDataProvider(ImageDataProvider):
+
+    def __init__(self, singleImagePath):
+
+        super(ImageDataProvider, self).__init__(None, None)
+
+        self.data_files = list()
+        self.data_files.append(singleImagePath)
+        self.data_suffix = '.' + str(singleImagePath.split('/')[-1].split('.')[-1])
+        self.imgShape = self._load_file(self.data_files[0]).shape
+        self.channels = self.imgShape[-1]
+        self.file_idx = -1
+        self.img = np.zeros((1, self.imgShape[0], self.imgShape[1], self.channels))
+
+        data = self._load_file(self.data_files[0], np.float32)
+        data = self._process_data(data)
+
+        self.img[0] = data
