@@ -20,30 +20,28 @@ def devTest():
     Parameters['depthConvolutionFilter'] = 16
     Parameters['channel'] = 3
     Parameters['outputClassNumber'] = 2
-    Parameters['regulationCoefficient'] = 0.01
     Parameters['optimizerType'] = "momentum"
     Parameters['optimizerValue'] = 0.90
     Parameters['learningRate'] = 0.01
     Parameters['batchSize'] = 2
     Parameters['decayRate'] = 0.95
     Parameters['dropout'] = 0.8
-    Parameters['epoch'] = 100
-    Parameters['iterations'] = 10
-    Parameters['datasrc'] = "C:/Work/Projets/Provital - Vergeture/Images apprentissage/test2"
-    Parameters['output'] = "C:/Work/Projets/Provital - Vergeture/Images apprentissage/Model"
+    Parameters['epoch'] = 1
+    Parameters['iterations'] = 0
+    Parameters['datasrc'] = "C:/Work/Projets/Git - UNets/Data"
+    Parameters['output'] = "C:/Work/Projets/Git - UNets/Model"
     return Parameters
 
 if __name__ == "__main__":
 
     Parameters = devTest()
    
-# !!! Remove current Parameters[output] directory to create a new one !!!
+# !!! Remove current path in Parameters[output] directory to create a new one !!!
 if (os.path.isdir(Parameters['output'] + '/model')):
     shutil.rmtree(Parameters['output'])
 os.mkdir(Parameters['output'])
 os.mkdir(Parameters['output'] + '/model')
 os.mkdir(Parameters['output'] + '/trainPrediction')
-os.mkdir(Parameters['output'] + '/testPrediction')
 
 #Load images to train UNet
 data_provider = image_util.ImageDataProvider(Parameters['datasrc'] + '/*', data_suffix=".png", mask_suffix="_mask.png")
@@ -60,7 +58,6 @@ if int(Parameters['iterations']) == 0:
 net = unet.Unet(layers=int(Parameters['layers']),
                 features_root=int(Parameters['depthConvolutionFilter']),
                 channels=int(Parameters['channel']),
-                regularisationConstant=np.float32(Parameters['regulationCoefficient']),
                 n_class=int(Parameters['outputClassNumber']),
                 filter_size=int(Parameters['convolutionFilter']))
 
@@ -72,9 +69,8 @@ trainer = unet.Trainer(net,
                                        learning_rate=np.float32(Parameters['learningRate']),
                                        decay_rate=np.float32(Parameters['decayRate'])))
 print("\tUNet initialized")
-path = trainer.train(data_provider,
-                     str(Parameters['output']),
-                     str(Parameters['output'] + '/trainPrediction'),
+path = trainer.train(data_provider=data_provider,
+                     output_path=str(Parameters['output']),
                      dropout=np.float32(Parameters['dropout']),
                      training_iters=int(Parameters['iterations']),
                      epochs=int(Parameters['epoch']))

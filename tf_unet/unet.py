@@ -24,6 +24,7 @@ import shutil
 import numpy as np
 from collections import OrderedDict
 import logging
+import math
 
 import tensorflow as tf
 
@@ -212,24 +213,24 @@ class Unet(object):
         self.n_class = n_class
         self.summaries = kwargs.get("summaries", True)
         
-	with tf.name_scope('inputs') as scope:
-        self.x = tf.placeholder("float", shape=[None, None, None, channels])
-        self.y = tf.placeholder("float", shape=[None, None, None, n_class])
-        self.keep_prob = tf.placeholder(tf.float32) #dropout (keep probability)
-        
-	with tf.name_scope('CONVNET') as scope:
-        logits, self.variables, self.offset = create_conv_net(self.x, self.keep_prob, channels, n_class, **kwargs)
-    with tf.name_scope('COST') as scope: 
-        self.cost = self._get_cost(logits, cost, cost_kwargs)
-    with tf.name_scope('GRADIENT') as scope:    
-        self.gradients_node = tf.gradients(self.cost, self.variables)
-    with tf.name_scope('CROSSENTROPY') as scope:     
-        self.cross_entropy = tf.reduce_mean(cross_entropy(tf.reshape(self.y, [-1, n_class]),
-                                                          tf.reshape(pixel_wise_softmax_2(logits), [-1, n_class])))
-	with tf.name_scope('PREDICTER') as scope:
-        self.predicter = pixel_wise_softmax_2(logits)
-        self.correct_pred = tf.equal(tf.argmax(self.predicter, 3), tf.argmax(self.y, 3))
-        self.accuracy = tf.reduce_mean(tf.cast(self.correct_pred, tf.float32))
+        with tf.name_scope('inputs') as scope:
+            self.x = tf.placeholder("float", shape=[None, None, None, channels])
+            self.y = tf.placeholder("float", shape=[None, None, None, n_class])
+            self.keep_prob = tf.placeholder(tf.float32) #dropout (keep probability)
+
+        with tf.name_scope('CONVNET') as scope:
+            logits, self.variables, self.offset = create_conv_net(self.x, self.keep_prob, channels, n_class, **kwargs)
+        with tf.name_scope('COST') as scope:
+            self.cost = self._get_cost(logits, cost, cost_kwargs)
+        with tf.name_scope('GRADIENT') as scope:
+            self.gradients_node = tf.gradients(self.cost, self.variables)
+        with tf.name_scope('CROSSENTROPY') as scope:
+            self.cross_entropy = tf.reduce_mean(cross_entropy(tf.reshape(self.y, [-1, n_class]),
+                                                              tf.reshape(pixel_wise_softmax_2(logits), [-1, n_class])))
+        with tf.name_scope('PREDICTER') as scope:
+            self.predicter = pixel_wise_softmax_2(logits)
+            self.correct_pred = tf.equal(tf.argmax(self.predicter, 3), tf.argmax(self.y, 3))
+            self.accuracy = tf.reduce_mean(tf.cast(self.correct_pred, tf.float32))
         
     def _get_cost(self, logits, cost_name, cost_kwargs):
         """
@@ -407,7 +408,7 @@ class Trainer(object):
         Lauches the training process
         
         :param data_provider: callable returning training and verification data
-        :param output_path: path where to store checkpoints
+        :param output_path: path where to store model and trainPrediction
         :param training_iters: number of training mini batch iteration
         :param epochs: number of epochs
         :param dropout: dropout probability
@@ -415,27 +416,30 @@ class Trainer(object):
         :param restore: Flag if previous model should be restored 
         :param write_graph: Flag if the computation graph should be written as protobuf file to the output path
         """
-        save_path = os.path.join(output_path, "model.cpkt")
+
+        outputModel = output_path + '/model'
+        save_path = os.path.join(outputModel, "model.ckpt")
+        self.prediction_path = output_path + '/trainPrediction'
         if epochs == 0:
             return save_path
         
-        init = self._initialize(training_iters, output_path, restore)
+        init = self._initialize(training_iters, outputModel, restore)
         
         with tf.Session() as sess:
             if write_graph:
-                tf.train.write_graph(sess.graph_def, output_path, "graph.pb", False)
+                tf.train.write_graph(sess.graph_def, outputModel, "graph.pb", False)
             
             sess.run(init)
             
             if restore:
-                ckpt = tf.train.get_checkpoint_state(output_path)
+                ckpt = tf.train.get_checkpoint_state(outputModel)
                 if ckpt and ckpt.model_checkpoint_path:
                     self.net.restore(sess, ckpt.model_checkpoint_path)
             
             test_x, test_y = data_provider(self.verification_batch_size)
             pred_shape = self.store_prediction(sess, test_x, test_y, "_init")
             
-            summary_writer = tf.summary.FileWriter(output_path, graph=sess.graph)
+            summary_writer = tf.summary.FileWriter(outputModel, graph=sess.graph)
             logging.info("Start optimization")
             
             avg_gradients = None
@@ -479,8 +483,8 @@ class Trainer(object):
         pred_shape = prediction.shape
         
         loss = sess.run(self.net.cost, feed_dict={self.net.x: batch_x, 
-                                                       self.net.y: util.crop_to_shape(batch_y, pred_shape), 
-                                                       self.net.keep_prob: 1.})
+                                                  self.net.y: util.crop_to_shape(batch_y, pred_shape),
+                                                  self.net.keep_prob: 1.})
         
         logging.info("Verification error= {:.1f}%, loss= {:.4f}".format(error_rate(prediction,
                                                                           util.crop_to_shape(batch_y,
@@ -488,7 +492,7 @@ class Trainer(object):
                                                                           loss))
               
         img = util.combine_img_prediction(batch_x, batch_y, prediction)
-        util.save_image(img, "%s/%s.jpg"%(self.prediction_path, name))
+        util.save_image(img, "%s/%s.tif"%(self.prediction_path, name))
         
         return pred_shape
     

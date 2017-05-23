@@ -54,6 +54,18 @@ def plot_prediction(x_test, y_test, prediction, save=False):
         fig.show()
         plt.show()
 
+
+def PlotSingleImagePrediction(prediction, output_path):
+    from PIL import Image
+
+    pred = prediction[0, ..., 1]
+    pred -= np.amin(pred)
+    pred /= np.amax(pred)
+
+    filename = output_path.split('.')[0] + '.tif'
+    img = Image.fromarray(pred)
+    img.save(filename)
+
 def to_rgb(img):
     """
     Converts the given array into a RGB image. If the number of channels is not
@@ -110,5 +122,5 @@ def save_image(img, path):
     :param img: the rgb image to save
     :param path: the target path
     """
-    Image.fromarray(img.round().astype(np.uint8)).save(path, 'JPEG', dpi=[300,300], quality=90)
+    Image.fromarray(img.round().astype(np.uint8)).save(path, 'PNG', dpi=[300,300], quality=100)
 
